@@ -1,0 +1,12 @@
+{
+  "rules": [
+    { "reason": "ATO_HIGH", "confidence": 0.93, "condition": "ato_signal_score >= 10" },
+    { "reason": "ATO_MEDIUM", "confidence": 0.75, "condition": "ato_signal_score >= 6" },
+    { "reason": "MULE_DISPERSE", "confidence": 0.90, "condition": "is_mule=true AND post_bulk_inflow_4h=true" },
+    { "reason": "HAWALA_MATCHED", "confidence": 0.95, "condition": "is_hawala_node=true AND matched_pair_48h=true" },
+    { "reason": "STRUCTURING", "confidence": 0.80, "condition": "is_structuring=true AND sub_50k_sequence_gte_3=true" },
+    { "reason": "VELOCITY_SPIKE", "confidence": 0.70, "condition": "velocity_ratio_gt_3=true" },
+    { "reason": "ROUND_TRIP", "confidence": 0.75, "condition": "is_round_tripper=true AND return_within_72h=true" },
+    { "reason": "DORMANT_BURST", "confidence": 0.70, "condition": "is_dormant_reactivated=true AND gap_days_gte_90=true" }
+  ]
+}

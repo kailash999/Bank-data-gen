@@ -1,27 +1,24 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Iterator
 
-try:
-    import psycopg2
-    from psycopg2.extras import execute_values
-except Exception as exc:  # pragma: no cover
-    raise RuntimeError("psycopg2 is required for DB scripts") from exc
+import psycopg2
+from psycopg2.extras import execute_values
 
-from utils.io_utils import load_json
+from utils.config_utils import load_config
 
 
 @contextmanager
 def get_conn(config_path: str = "config/db.json") -> Iterator[Any]:
-    cfg = load_json(config_path)
+    cfg = load_config(config_path)
     conn = psycopg2.connect(
         host=cfg["host"],
-        port=cfg.get("port", 5432),
+        port=cfg["port"],
         user=cfg["user"],
         password=cfg["password"],
-        dbname=cfg["database"],
+        dbname=cfg["dbname"],
     )
     try:
         yield conn
@@ -33,14 +30,23 @@ def get_conn(config_path: str = "config/db.json") -> Iterator[Any]:
         conn.close()
 
 
-def log_run(conn: Any, script_name: str, status: str, details: str = "") -> None:
+def log_run(
+    conn: Any,
+    script_name: str,
+    status: str,
+    rows_processed: int,
+    rows_written: int,
+    errors: int,
+    notes: str,
+) -> None:
+    now = datetime.utcnow()
     with conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO run_log (script_name, run_at, status, details)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO run_log (script_name, status, rows_processed, rows_written, errors, started_at, finished_at, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (script_name, datetime.now(timezone.utc), status, details),
+            (script_name, status, rows_processed, rows_written, errors, now, now, notes),
         )
 
 

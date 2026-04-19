@@ -4,6 +4,7 @@ import random
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 
+from utils.config_utils import load_config
 from utils.io_utils import read_jsonl, write_jsonl
 from utils.logging_utils import configure_logger
 
@@ -67,7 +68,11 @@ def is_connected(ids: list[str], edges: list[tuple[str, str]]) -> bool:
 
 
 def main() -> None:
+    segment_cfg = load_config("config/agent_segments.json")
+    expected_total = sum(int(v) for v in segment_cfg.values())
     agents = list(read_jsonl("data/temp/enriched_agents.jsonl"))
+    if len(agents) != expected_total:
+        raise RuntimeError(f"Input count mismatch: expected={expected_total}, got={len(agents)}")
     by_type = defaultdict(list)
     for a in agents:
         by_type[a["segment"]].append(a)

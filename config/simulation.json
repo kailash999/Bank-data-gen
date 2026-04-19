@@ -1,0 +1,22 @@
+{
+  "simulation_days": 3,
+  "total_target_events": 200000,
+  "suspicious_rate_min": 0.01,
+  "suspicious_rate_max": 0.02,
+  "time_slots": {
+    "morning": { "start": "06:00", "end": "12:00", "weight": 0.20 },
+    "afternoon": { "start": "12:00", "end": "18:00", "weight": 0.35 },
+    "evening": { "start": "18:00", "end": "23:00", "weight": 0.45 }
+  },
+  "delay_model": {
+    "salary_user": { "min_minutes": 120, "max_minutes": 720 },
+    "merchant": { "min_minutes": 5, "max_minutes": 120 },
+    "household": { "min_minutes": 180, "max_minutes": 1440 },
+    "mule_account": { "min_minutes": 5, "max_minutes": 180 },
+    "hawala_node": { "min_minutes": 30, "max_minutes": 360 },
+    "structuring_user": { "min_minutes": 3, "max_minutes": 45 },
+    "domestic_informal": { "min_minutes": 720, "max_minutes": 4320 },
+    "ato_victim": { "min_minutes": 30, "max_minutes": 120 },
+    "ato_attacker": { "min_minutes": 1, "max_minutes": 3 }
+  }
+}

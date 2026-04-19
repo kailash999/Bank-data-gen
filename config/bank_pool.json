@@ -1,22 +1,10 @@
-[
-  {
-    "bank_name": "National Commerce Bank",
-    "ifsc_prefix": "NCBK000",
-    "cities": ["Mumbai", "Delhi", "Bengaluru", "Hyderabad"]
-  },
-  {
-    "bank_name": "Urban Trust Bank",
-    "ifsc_prefix": "UTBK000",
-    "cities": ["Chennai", "Kolkata", "Pune", "Ahmedabad", "Mumbai"]
-  },
-  {
-    "bank_name": "People's Cooperative Bank",
-    "ifsc_prefix": "PCBK000",
-    "cities": ["Delhi", "Pune", "Hyderabad", "Ahmedabad"]
-  },
-  {
-    "bank_name": "Frontier Small Finance",
-    "ifsc_prefix": "FSFB000",
-    "cities": ["Bengaluru", "Chennai", "Kolkata", "Mumbai"]
-  }
-]
+{
+  "banks": [
+    { "name": "SBI", "ifsc_prefix": "SBIN", "cities": ["all"] },
+    { "name": "HDFC", "ifsc_prefix": "HDFC", "cities": ["all"] },
+    { "name": "ICICI", "ifsc_prefix": "ICIC", "cities": ["all"] },
+    { "name": "Axis", "ifsc_prefix": "UTIB", "cities": ["all"] },
+    { "name": "Kotak", "ifsc_prefix": "KKBK", "cities": ["Mumbai", "Pune", "Delhi"] },
+    { "name": "Yes Bank", "ifsc_prefix": "YESB", "cities": ["Mumbai", "Delhi", "Bengaluru"] }
+  ]
+}

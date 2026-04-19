@@ -6,52 +6,42 @@ from utils.logging_utils import configure_logger
 
 logger = configure_logger("08_load_links_to_db")
 
-COLUMNS = [
-    "link_id",
-    "sender_agent_id",
-    "receiver_agent_id",
-    "link_type",
-    "established_date",
-    "is_active",
-]
+COLUMNS = ["link_id", "sender_agent_id", "receiver_agent_id", "link_type", "established_date", "is_active"]
 
 
-def chunks(lst, size):
-    for i in range(0, len(lst), size):
-        yield lst[i : i + size]
+def chunks(items, size: int):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
 
 
 def main() -> None:
     links = list(read_jsonl("data/temp/beneficiary_links.jsonl"))
+    processed = len(links)
+    inserted = 0
     fk_errors = []
 
     with get_conn("config/db.json") as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT agent_id FROM agents")
-            valid_agents = {r[0] for r in cur.fetchall()}
+            valid_agents = {row[0] for row in cur.fetchall()}
 
-            inserted = 0
             for chunk in chunks(links, 1000):
-                valid_chunk = []
-                for l in chunk:
-                    s = l["sender_agent_id"]
-                    r = l["receiver_agent_id"]
-                    if s not in valid_agents or r not in valid_agents:
-                        fk_errors.append({"link_id": l["link_id"], "sender": s, "receiver": r})
+                valid_rows = []
+                for link in chunk:
+                    sender = link["sender_agent_id"]
+                    receiver = link["receiver_agent_id"]
+                    if sender not in valid_agents or receiver not in valid_agents:
+                        fk_errors.append({"link_id": link["link_id"], "sender": sender, "receiver": receiver})
                         continue
-                    valid_chunk.append(tuple(l.get(c) for c in COLUMNS))
+                    valid_rows.append(tuple(link.get(c) for c in COLUMNS))
 
-                if valid_chunk:
-                    sql = f"""
-                        INSERT INTO beneficiary_links ({', '.join(COLUMNS)})
-                        VALUES %s
-                        ON CONFLICT (link_id) DO NOTHING
-                    """
-                    execute_values(cur, sql, valid_chunk)
-                    inserted += len(valid_chunk)
+                if valid_rows:
+                    sql = f"INSERT INTO beneficiary_links ({', '.join(COLUMNS)}) VALUES %s ON CONFLICT (link_id) DO NOTHING"
+                    execute_values(cur, sql, valid_rows)
+                    inserted += len(valid_rows)
 
             cur.execute("SELECT COUNT(*) FROM beneficiary_links")
-            total = cur.fetchone()[0]
+            total_links = cur.fetchone()[0]
 
             cur.execute(
                 """
@@ -63,20 +53,27 @@ def main() -> None:
                 LIMIT 1
                 """
             )
-            missing = cur.fetchone()
-            if missing:
-                log_run(conn, "08_load_links_to_db", "failed", "isolated_agent_detected")
-                raise RuntimeError(f"Agent with zero links found: {missing[0]}")
+            isolated = cur.fetchone()
+            if isolated:
+                log_run(conn, "08_load_links_to_db.py", "failed", processed, inserted, len(fk_errors) + 1, "isolated agent")
+                raise RuntimeError(f"Agent has no links: {isolated[0]}")
 
         if fk_errors:
             write_jsonl("data/temp/errors/link_fk_errors.jsonl", fk_errors)
-        if fk_errors:
-            log_run(conn, "08_load_links_to_db", "failed", f"fk_violations:{len(fk_errors)}")
-            raise RuntimeError(f"FK violations detected: {len(fk_errors)}")
+            log_run(
+                conn,
+                "08_load_links_to_db.py",
+                "failed",
+                processed,
+                inserted,
+                len(fk_errors),
+                "fk violations encountered",
+            )
+            raise RuntimeError(f"FK violations: {len(fk_errors)}")
 
-        log_run(conn, "08_load_links_to_db", "success", f"inserted:{inserted}, total:{total}")
+        log_run(conn, "08_load_links_to_db.py", "success", processed, inserted, 0, f"total_links={total_links}")
 
-    logger.info("Loaded links successfully. total=%s", total)
+    logger.info("Loaded beneficiary links processed=%s inserted=%s", processed, inserted)
 
 
 if __name__ == "__main__":

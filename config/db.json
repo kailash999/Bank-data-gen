@@ -1,8 +1,8 @@
 {
-  "host": "localhost",
+  "host": "rds-endpoint.amazonaws.com",
   "port": 5432,
-  "user": "postgres",
-  "password": "postgres",
-  "database": "bank_data_gen",
-  "admin_database": "postgres"
+  "dbname": "synthetic_fin",
+  "user": "admin",
+  "password": "ENV:DB_PASSWORD",
+  "pool_size": 10
 }

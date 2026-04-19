@@ -1,118 +1,102 @@
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
-from typing import Any
 
+from openai import OpenAI
+
+from utils.config_utils import load_config
 from utils.io_utils import dump_json, load_json, read_jsonl, write_jsonl
 from utils.logging_utils import configure_logger
 
 logger = configure_logger("02_submit_batches")
 
 
-try:
-    from openai import OpenAI
-except Exception as exc:  # pragma: no cover
-    raise RuntimeError("openai package is required for batch submission") from exc
+def _retry_sleep(attempt: int) -> None:
+    time.sleep(min(300, 2**attempt))
 
 
-def backoff_sleep(attempt: int) -> None:
-    time.sleep(min(120, 2**attempt))
-
-
-def upload_with_retry(client: OpenAI, path: Path, max_attempts: int = 5):
-    for attempt in range(max_attempts):
+def _upload_file(client: OpenAI, batch_file: Path):
+    for attempt in range(1, 6):
         try:
-            with path.open("rb") as f:
+            with batch_file.open("rb") as f:
                 return client.files.create(file=f, purpose="batch")
         except Exception:
-            if attempt == max_attempts - 1:
+            if attempt == 5:
                 raise
-            backoff_sleep(attempt + 1)
+            _retry_sleep(attempt)
 
 
-def download_with_retry(client: OpenAI, file_id: str, target: Path, max_attempts: int = 3) -> None:
-    for attempt in range(max_attempts):
+def _download_output(client: OpenAI, file_id: str, output_path: Path) -> None:
+    for attempt in range(1, 4):
         try:
-            content = client.files.content(file_id)
-            target.write_bytes(content.read())
+            data = client.files.content(file_id)
+            output_path.write_bytes(data.read())
             return
         except Exception:
-            if attempt == max_attempts - 1:
+            if attempt == 3:
                 raise
-            backoff_sleep(attempt + 1)
-
-
-def collect_batch_custom_ids(batch_file: Path) -> list[str]:
-    return [row["custom_id"] for row in read_jsonl(batch_file)]
+            _retry_sleep(attempt)
 
 
 def main() -> None:
-    cfg = load_json("config/openai.json")
-    batches_dir = Path(cfg.get("batch_output_dir", "data/temp/batches"))
-    results_dir = Path(cfg.get("results_output_dir", "data/temp/results"))
+    cfg = load_config("config/openai.json")
+    output_dir = Path(cfg["output_dir"])
+    results_dir = Path("data/temp/results")
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    status_path = batches_dir / "batch_status.json"
+    status_path = output_dir / "batch_status.json"
     retry_path = Path("data/temp/retry_queue.jsonl")
+    batch_files = sorted(output_dir.glob("batch_*.jsonl"))
 
-    client = OpenAI(api_key=cfg.get("api_key"))
+    client = OpenAI(api_key=cfg["api_key"])
+    status = load_json(status_path) if status_path.exists() else {}
 
-    status: dict[str, Any] = load_json(status_path) if status_path.exists() else {}
-
-    batch_files = sorted(batches_dir.glob("batch_*.jsonl"))
-    for path in batch_files:
-        key = path.stem
-        if key in status:
+    for batch_file in batch_files:
+        name = batch_file.stem
+        if name in status:
             continue
-        uploaded = upload_with_retry(client, path)
-        batch = client.batches.create(
-            input_file_id=uploaded.id,
+        file_obj = _upload_file(client, batch_file)
+        batch_obj = client.batches.create(
+            input_file_id=file_obj.id,
             endpoint="/v1/chat/completions",
-            completion_window=cfg.get("completion_window", "24h"),
+            completion_window="24h",
         )
-        status[key] = {
-            "file_id": uploaded.id,
-            "batch_id": batch.id,
-            "status": "pending",
+        status[name] = {
+            "file_id": file_obj.id,
+            "batch_id": batch_obj.id,
+            "status": batch_obj.status,
             "output_file_id": None,
         }
         dump_json(status_path, status)
-        logger.info("Submitted %s => %s", key, batch.id)
 
-    poll_seconds = int(cfg.get("poll_seconds", 1800))
-
+    poll_seconds = int(cfg["poll_interval_minutes"]) * 60
     while True:
         pending = [k for k, v in status.items() if v["status"] not in {"complete", "failed"}]
         if not pending:
             break
 
-        for key in pending:
-            batch_id = status[key]["batch_id"]
-            batch = client.batches.retrieve(batch_id)
-            b_status = batch.status
-            status[key]["status"] = b_status
+        for name in pending:
+            batch_obj = client.batches.retrieve(status[name]["batch_id"])
+            st = batch_obj.status
 
-            if b_status == "completed":
-                output_file_id = batch.output_file_id
-                if output_file_id:
-                    target = results_dir / f"result_{key.split('_')[-1]}.jsonl"
-                    download_with_retry(client, output_file_id, target)
-                    status[key]["status"] = "complete"
-                    status[key]["output_file_id"] = output_file_id
-                    logger.info("Downloaded result for %s", key)
-            elif b_status == "failed":
-                req_ids = collect_batch_custom_ids(batches_dir / f"{key}.jsonl")
-                write_jsonl(retry_path, ({"custom_id": i, "source_batch": key} for i in req_ids), append=True)
-                status[key]["status"] = "failed"
-                logger.error("Batch %s failed; queued %s custom_ids", key, len(req_ids))
+            if st == "completed":
+                out_file_id = batch_obj.output_file_id
+                if out_file_id:
+                    result_num = name.split("_")[-1]
+                    _download_output(client, out_file_id, results_dir / f"result_{result_num}.jsonl")
+                    status[name]["output_file_id"] = out_file_id
+                    status[name]["status"] = "complete"
+            elif st == "failed":
+                failed_ids = [row["custom_id"] for row in read_jsonl(output_dir / f"{name}.jsonl")]
+                write_jsonl(retry_path, ({"custom_id": cid, "source_batch": name} for cid in failed_ids), append=True)
+                status[name]["status"] = "failed"
+            else:
+                status[name]["status"] = st
 
             dump_json(status_path, status)
 
-        remaining = [k for k, v in status.items() if v["status"] not in {"complete", "failed"}]
-        if remaining:
-            logger.info("Pending batches remaining=%s, sleeping %ss", len(remaining), poll_seconds)
+        if any(v["status"] not in {"complete", "failed"} for v in status.values()):
             time.sleep(poll_seconds)
 
 
