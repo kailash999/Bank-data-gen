@@ -1,8 +1,8 @@
 {
-  "host": "rds-endpoint.amazonaws.com",
-  "port": 5432,
-  "dbname": "synthetic_fin",
-  "user": "admin",
-  "password": "ENV:DB_PASSWORD",
+  "host": "database-2.cluster-ctsqc5mbn43x.ap-south-1.rds.amazonaws.com",
+  "port": 0,
+  "dbname": "postgres",
+  "user": "postgres",
+  "password": "data-gen-tool#aws",
   "pool_size": 10
 }
