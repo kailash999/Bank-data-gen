@@ -1,0 +1,8 @@
+{
+  "host": "rds-endpoint.amazonaws.com",
+  "port": 5432,
+  "dbname": "synthetic_fin",
+  "user": "admin",
+  "password": "ENV:DB_PASSWORD",
+  "pool_size": 10
+}

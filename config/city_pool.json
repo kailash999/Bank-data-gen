@@ -1,0 +1,14 @@
+{
+  "cities": [
+    { "name": "Mumbai", "state": "Maharashtra", "weight": 0.18, "isp_cidr": "103.21.0.0/16" },
+    { "name": "Delhi", "state": "Delhi", "weight": 0.16, "isp_cidr": "182.64.0.0/16" },
+    { "name": "Bengaluru", "state": "Karnataka", "weight": 0.14, "isp_cidr": "49.37.0.0/16" },
+    { "name": "Hyderabad", "state": "Telangana", "weight": 0.12, "isp_cidr": "117.96.0.0/16" },
+    { "name": "Chennai", "state": "Tamil Nadu", "weight": 0.10, "isp_cidr": "103.55.0.0/16" },
+    { "name": "Kolkata", "state": "West Bengal", "weight": 0.08, "isp_cidr": "115.96.0.0/16" },
+    { "name": "Ahmedabad", "state": "Gujarat", "weight": 0.07, "isp_cidr": "122.160.0.0/16" },
+    { "name": "Pune", "state": "Maharashtra", "weight": 0.07, "isp_cidr": "49.205.0.0/16" },
+    { "name": "Jaipur", "state": "Rajasthan", "weight": 0.04, "isp_cidr": "117.241.0.0/16" },
+    { "name": "Surat", "state": "Gujarat", "weight": 0.04, "isp_cidr": "103.78.0.0/16" }
+  ]
+}
