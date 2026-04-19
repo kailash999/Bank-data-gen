@@ -1,0 +1,10 @@
+{
+  "banks": [
+    { "name": "SBI", "ifsc_prefix": "SBIN", "cities": ["all"] },
+    { "name": "HDFC", "ifsc_prefix": "HDFC", "cities": ["all"] },
+    { "name": "ICICI", "ifsc_prefix": "ICIC", "cities": ["all"] },
+    { "name": "Axis", "ifsc_prefix": "UTIB", "cities": ["all"] },
+    { "name": "Kotak", "ifsc_prefix": "KKBK", "cities": ["Mumbai", "Pune", "Delhi"] },
+    { "name": "Yes Bank", "ifsc_prefix": "YESB", "cities": ["Mumbai", "Delhi", "Bengaluru"] }
+  ]
+}

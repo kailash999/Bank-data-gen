@@ -1,0 +1,20 @@
+{
+  "signals": {
+    "login_failed_count_gte_2": 2,
+    "device_change": 3,
+    "ip_change": 2,
+    "ip_risk_score_gt_0_5": 2,
+    "mobile_change": 3,
+    "email_change": 2,
+    "password_change": 2,
+    "payee_added": 1,
+    "time_since_payee_add_lt_300": 2,
+    "tx_count_session_gt_3": 1,
+    "tx_gap_avg_s_lt_120": 2,
+    "amt_vs_baseline_gt_3": 2
+  },
+  "thresholds": {
+    "ATO_HIGH": 10,
+    "ATO_MEDIUM": 6
+  }
+}
