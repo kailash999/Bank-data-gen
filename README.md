@@ -4,6 +4,7 @@ Phase 1 pipeline for generating 40,000 agents, building beneficiary links, and l
 
 ## Pipeline scripts
 
+- `scripts/00_create_db_and_tables.py`
 - `scripts/01_build_batches.py`
 - `scripts/02_submit_batches.py`
 - `scripts/03_parse_responses.py`
@@ -21,3 +22,6 @@ Environment-backed secrets use `ENV:<VAR_NAME>` and are resolved at runtime.
 ## Database schema
 
 Run `scripts/db/create_tables.sql` once before running load scripts.
+
+
+Run scripts from repo root (for example: `python scripts/00_create_db_and_tables.py`).
