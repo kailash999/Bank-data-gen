@@ -22,6 +22,8 @@ Phase 1 pipeline scripts for generating, validating, enriching, linking, and loa
 - `config/bank_pool.json`
 - `config/db.json`
 
+Default starter versions of these config files are included in this repository and can be edited per environment.
+
 ## Notes
 
 - Intermediate artifacts are written under `data/temp/`.

@@ -1,0 +1,10 @@
+{
+  "api_key": "",
+  "model": "gpt-4o",
+  "max_tokens": 500,
+  "batch_size": 1000,
+  "completion_window": "24h",
+  "poll_seconds": 1800,
+  "batch_output_dir": "data/temp/batches",
+  "results_output_dir": "data/temp/results"
+}

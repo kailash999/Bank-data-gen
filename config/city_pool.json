@@ -1,0 +1,10 @@
+[
+  {"city": "Mumbai", "weight": 0.20, "isp_cidr": "103.21.244.0/24"},
+  {"city": "Delhi", "weight": 0.17, "isp_cidr": "103.22.200.0/24"},
+  {"city": "Bengaluru", "weight": 0.14, "isp_cidr": "103.23.150.0/24"},
+  {"city": "Hyderabad", "weight": 0.11, "isp_cidr": "103.24.100.0/24"},
+  {"city": "Chennai", "weight": 0.10, "isp_cidr": "103.25.90.0/24"},
+  {"city": "Kolkata", "weight": 0.09, "isp_cidr": "103.26.80.0/24"},
+  {"city": "Pune", "weight": 0.10, "isp_cidr": "103.27.70.0/24"},
+  {"city": "Ahmedabad", "weight": 0.09, "isp_cidr": "103.28.60.0/24"}
+]
