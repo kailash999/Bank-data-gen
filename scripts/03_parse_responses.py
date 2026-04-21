@@ -36,7 +36,8 @@ def main() -> None:
     parsed = []
     errors = []
     retry_ids = set()
-    seen = set()
+    latest_rows: dict[str, dict] = {}
+    duplicate_ids = set()
 
     for result_file in sorted(results_dir.glob("result_*.jsonl")):
         for row in read_jsonl(result_file):
@@ -44,36 +45,44 @@ def main() -> None:
             if not custom_id:
                 errors.append({"error": "missing_custom_id", "file": str(result_file)})
                 continue
-            if custom_id in seen:
-                errors.append({"custom_id": custom_id, "error": "duplicate_custom_id"})
-                retry_ids.add(custom_id)
-                continue
-            seen.add(custom_id)
+            if custom_id in latest_rows:
+                duplicate_ids.add(custom_id)
+            latest_rows[custom_id] = row
 
-            try:
-                content = row["response"]["body"]["choices"][0]["message"]["content"]
-            except Exception:
-                errors.append({"custom_id": custom_id, "error": "missing_response_content"})
-                retry_ids.add(custom_id)
-                continue
-            if not content:
-                errors.append({"custom_id": custom_id, "error": "empty_content"})
-                retry_ids.add(custom_id)
-                continue
+    for custom_id in sorted(duplicate_ids):
+        errors.append({"custom_id": custom_id, "error": "duplicate_custom_id_overwritten"})
 
-            try:
-                agent = _extract_json(content)
-            except Exception as exc:
-                errors.append({"custom_id": custom_id, "error": f"parse_error:{exc}"})
-                retry_ids.add(custom_id)
-                continue
+    for custom_id, row in latest_rows.items():
+        try:
+            content = row["response"]["body"]["choices"][0]["message"]["content"]
+        except Exception:
+            errors.append({"custom_id": custom_id, "error": "missing_response_content"})
+            retry_ids.add(custom_id)
+            continue
+        if not content:
+            errors.append({"custom_id": custom_id, "error": "empty_content"})
+            retry_ids.add(custom_id)
+            continue
 
-            m = manifest.get(custom_id, {})
-            agent["agent_ref"] = custom_id
-            agent["segment"] = m.get("segment", agent.get("segment"))
-            if not agent.get("city"):
-                agent["city"] = m.get("city")
-            parsed.append(agent)
+        try:
+            agent = _extract_json(content)
+        except Exception as exc:
+            errors.append({"custom_id": custom_id, "error": f"parse_error:{exc}"})
+            retry_ids.add(custom_id)
+            continue
+
+        m = manifest.get(custom_id, {})
+        agent["agent_ref"] = custom_id
+        agent["segment"] = m.get("segment", agent.get("segment"))
+        if not agent.get("city"):
+            agent["city"] = m.get("city")
+        parsed.append(agent)
+
+    seen = set(latest_rows.keys())
+    missing_ids = sorted(set(manifest.keys()) - seen)
+    for cid in missing_ids:
+        errors.append({"custom_id": cid, "error": "missing_result"})
+    retry_ids.update(missing_ids)
 
     missing_ids = sorted(set(manifest.keys()) - seen)
     for cid in missing_ids:
