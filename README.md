@@ -14,6 +14,11 @@ Phase 1 pipeline for generating 40,000 agents, building beneficiary links, and l
 - `scripts/07_load_agents_to_db.py`
 - `scripts/08_load_links_to_db.py`
 
+## Prompt templates
+
+`scripts/01_build_batches.py` reads per-segment prompt templates from `prompts/<segment>.txt`.
+Run the script from any working directory; template paths are resolved from the repository root.
+
 ## Configs
 
 All runtime configuration is in `config/`.
