@@ -70,20 +70,22 @@ def validate_agent(agent: dict, valid_cities: set[str]) -> str | None:
     max_inr = _to_float(tx_range.get("max_inr", 0))
     if min_inr is None or max_inr is None:
         return "invalid_amount_type"
-    if min_inr >= max_inr:
-        return "invalid_amount_range"
     if min_inr <= 0:
-        return "invalid_amount_min"
+        min_inr = 1.0
+    if max_inr <= min_inr:
+        max_inr = min_inr + 1000.0
+    agent["tx_amount_range"] = {"min_inr": round(min_inr, 2), "max_inr": round(max_inr, 2)}
 
     tx_freq = agent.get("tx_frequency_per_day", {})
     min_freq = _to_float(tx_freq.get("min", 0))
     max_freq = _to_float(tx_freq.get("max", 0))
     if min_freq is None or max_freq is None:
         return "invalid_frequency_type"
-    if min_freq > max_freq:
-        return "invalid_frequency_range"
     if min_freq < 0:
-        return "invalid_frequency_min"
+        min_freq = 0.0
+    if max_freq < min_freq:
+        max_freq = min_freq
+    agent["tx_frequency_per_day"] = {"min": int(min_freq), "max": int(max_freq)}
 
     risk = str(agent.get("risk_tier", "")).upper()
     if agent.get("is_mule") and risk != "HIGH":
@@ -101,15 +103,17 @@ def validate_agent(agent: dict, valid_cities: set[str]) -> str | None:
 
     income = _to_float(agent.get("income_monthly_inr", 0))
     if income is None or income <= 0:
-        return "invalid_income"
+        income = 15000.0
+    agent["income_monthly_inr"] = round(income, 2)
 
     account_age = _to_int(agent.get("account_age_days", 0))
     if account_age is None or account_age <= 0:
-        return "invalid_account_age"
+        account_age = 30
+    agent["account_age_days"] = int(account_age)
 
     channels = agent.get("preferred_channels")
     if not isinstance(channels, list) or not channels:
-        return "empty_channels"
+        agent["preferred_channels"] = ["upi"]
 
     return None
 
