@@ -434,6 +434,54 @@ def _materialize_retry_batches(output_dir: Path, retry_path: Path, batch_size: i
     logger.info("Cleared retry queue after materialization: %s", retry_path)
 
 
+def _is_primary_batch_file(path: Path) -> bool:
+    stem = path.stem
+    if not stem.startswith("batch_"):
+        return False
+    suffix = stem.split("_", 1)[1]
+    return suffix.isdigit()
+
+
+def _materialize_retry_batches(output_dir: Path, retry_path: Path, batch_size: int) -> None:
+    if not retry_path.exists():
+        return
+
+    retry_ids = {row["custom_id"] for row in read_jsonl(retry_path) if row.get("custom_id")}
+    if not retry_ids:
+        return
+
+    source_requests = {}
+    for batch_file in sorted(output_dir.glob("batch_*.jsonl")):
+        if not _is_primary_batch_file(batch_file):
+            continue
+        for row in read_jsonl(batch_file):
+            custom_id = row.get("custom_id")
+            if custom_id in retry_ids:
+                source_requests[custom_id] = row
+
+    matched_ids = sorted(source_requests.keys())
+    missing_ids = sorted(retry_ids - set(matched_ids))
+    if missing_ids:
+        logger.warning("Retry queue has %s IDs not found in primary batch files", len(missing_ids))
+
+    retry_rows = [source_requests[cid] for cid in matched_ids]
+    if not retry_rows:
+        logger.warning("Retry queue is present but no retryable requests were found")
+        return
+
+    retry_files = sorted(output_dir.glob("batch_retry_*.jsonl"))
+    start_num = len(retry_files) + 1
+    for idx in range(0, len(retry_rows), batch_size):
+        chunk = retry_rows[idx : idx + batch_size]
+        retry_num = start_num + (idx // batch_size)
+        retry_file = output_dir / f"batch_retry_{retry_num:03d}.jsonl"
+        write_jsonl(retry_file, chunk)
+
+    logger.info("Materialized %s retry requests into %s retry batch file(s)", len(retry_rows), (len(retry_rows) - 1) // batch_size + 1)
+    write_jsonl(retry_path, [])
+    logger.info("Cleared retry queue after materialization: %s", retry_path)
+
+
 def main() -> None:
     cfg = load_config("config/openai.json")
     output_dir = Path(cfg["output_dir"])
