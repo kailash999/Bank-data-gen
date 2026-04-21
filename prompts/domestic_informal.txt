@@ -1,0 +1,21 @@
+Create one realistic synthetic Indian bank customer profile in strict JSON.
+
+Context:
+- Segment: domestic_informal
+- Primary city: {CITY}
+
+Return exactly one JSON object with these keys only:
+name, age, gender, city, income_monthly_inr, account_type, account_age_days, user_type, risk_tier,
+is_mule, is_hawala_node, is_structuring, tx_amount_range, tx_frequency_per_day,
+preferred_channels, behavior_description
+
+Rules:
+- city must be "{CITY}".
+- user_type should reflect informal cash-heavy domestic remittance behavior.
+- risk_tier should usually be MEDIUM.
+- is_mule=false, is_hawala_node=false, is_structuring=false.
+- tx_amount_range is an object with min_inr and max_inr (max_inr > min_inr > 0).
+- tx_frequency_per_day is an object with min and max (max >= min >= 0).
+- preferred_channels is a non-empty array of strings.
+- behavior_description is 1-2 concise sentences.
+- Return raw JSON only, no markdown.
