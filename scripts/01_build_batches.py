@@ -44,7 +44,7 @@ def main() -> None:
     requests = []
 
     for idx, segment in enumerate(slots, start=1):
-        prompt_path = Path("prompts") / f"{segment}.txt"
+        prompt_path = ROOT_DIR / "prompts" / f"{segment}.txt"
         if not prompt_path.exists():
             raise FileNotFoundError(f"Prompt template file missing for segment '{segment}' at {prompt_path}")
 
