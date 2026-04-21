@@ -1,8 +1,9 @@
 {
-  "api_key": "ENV:OPENAI_API_KEY",
+  "api_key": "${OPENAI_API_KEY}",
   "model": "gpt-4o",
   "max_tokens": 500,
   "batch_size": 1000,
   "poll_interval_minutes": 30,
-  "output_dir": "data/temp/batches"
+  "output_dir": "./batches"
 }
+

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 
 import sys
 from pathlib import Path
@@ -17,6 +18,9 @@ logger = configure_logger("00_create_db_and_tables")
 
 
 def ensure_database_exists(cfg: dict) -> None:
+    if cfg["password"] == "${DB_PASSWORD}":
+        cfg["password"] = os.getenv("DB_PASSWORD")
+    print(f"Using database config: host={cfg['password']}, port={cfg['port']}, user={cfg['user']}, dbname={cfg['dbname']}")
     conn = psycopg2.connect(
         host=cfg["host"],
         port=cfg["port"],

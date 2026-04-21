@@ -19,6 +19,7 @@ def get_conn(config_path: str = "config/db.json") -> Iterator[Any]:
         user=cfg["user"],
         password=cfg["password"],
         dbname=cfg["dbname"],
+         
     )
     try:
         yield conn
