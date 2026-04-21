@@ -84,6 +84,11 @@ def main() -> None:
         errors.append({"custom_id": cid, "error": "missing_result"})
     retry_ids.update(missing_ids)
 
+    missing_ids = sorted(set(manifest.keys()) - seen)
+    for cid in missing_ids:
+        errors.append({"custom_id": cid, "error": "missing_result"})
+    retry_ids.update(missing_ids)
+
     write_jsonl("data/temp/raw_agents.jsonl", parsed)
     write_jsonl("data/temp/errors/parse_errors.jsonl", errors)
     write_jsonl(
