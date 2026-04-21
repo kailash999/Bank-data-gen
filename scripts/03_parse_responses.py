@@ -35,6 +35,7 @@ def main() -> None:
     results_dir = Path("data/temp/results")
     parsed = []
     errors = []
+    retry_ids = set()
     seen = set()
 
     for result_file in sorted(results_dir.glob("result_*.jsonl")):
@@ -45,6 +46,7 @@ def main() -> None:
                 continue
             if custom_id in seen:
                 errors.append({"custom_id": custom_id, "error": "duplicate_custom_id"})
+                retry_ids.add(custom_id)
                 continue
             seen.add(custom_id)
 
@@ -52,15 +54,18 @@ def main() -> None:
                 content = row["response"]["body"]["choices"][0]["message"]["content"]
             except Exception:
                 errors.append({"custom_id": custom_id, "error": "missing_response_content"})
+                retry_ids.add(custom_id)
                 continue
             if not content:
                 errors.append({"custom_id": custom_id, "error": "empty_content"})
+                retry_ids.add(custom_id)
                 continue
 
             try:
                 agent = _extract_json(content)
             except Exception as exc:
                 errors.append({"custom_id": custom_id, "error": f"parse_error:{exc}"})
+                retry_ids.add(custom_id)
                 continue
 
             m = manifest.get(custom_id, {})
@@ -70,9 +75,26 @@ def main() -> None:
                 agent["city"] = m.get("city")
             parsed.append(agent)
 
+    missing_ids = sorted(set(manifest.keys()) - seen)
+    for cid in missing_ids:
+        errors.append({"custom_id": cid, "error": "missing_result"})
+    retry_ids.update(missing_ids)
+
     write_jsonl("data/temp/raw_agents.jsonl", parsed)
     write_jsonl("data/temp/errors/parse_errors.jsonl", errors)
-    logger.info("raw=%s parse_errors=%s total=%s", len(parsed), len(errors), len(parsed) + len(errors))
+    write_jsonl(
+        "data/temp/retry_queue.jsonl",
+        ({"custom_id": cid, "source": "03_parse_responses"} for cid in sorted(retry_ids)),
+    )
+
+    logger.info(
+        "raw=%s parse_errors=%s missing_results=%s total=%s retry_queue=%s",
+        len(parsed),
+        len(errors),
+        len(missing_ids),
+        len(parsed) + len(errors),
+        len(retry_ids),
+    )
 
 
 if __name__ == "__main__":
