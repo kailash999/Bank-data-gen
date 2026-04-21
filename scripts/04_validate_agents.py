@@ -87,11 +87,14 @@ def validate_agent(agent: dict, valid_cities: set[str]) -> str | None:
 
     risk = str(agent.get("risk_tier", "")).upper()
     if agent.get("is_mule") and risk != "HIGH":
-        return "mule_risk_mismatch"
+        agent["risk_tier"] = "HIGH"
+        risk = "HIGH"
     if agent.get("is_hawala_node") and risk != "HIGH":
-        return "hawala_risk_mismatch"
+        agent["risk_tier"] = "HIGH"
+        risk = "HIGH"
     if agent.get("is_structuring") and risk not in {"MEDIUM", "HIGH"}:
-        return "structuring_risk_mismatch"
+        agent["risk_tier"] = "MEDIUM"
+        risk = "MEDIUM"
 
     if agent.get("city") not in valid_cities:
         return "invalid_city"
