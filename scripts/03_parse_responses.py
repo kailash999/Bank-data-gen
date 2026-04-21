@@ -49,8 +49,7 @@ def main() -> None:
                 duplicate_ids.add(custom_id)
             latest_rows[custom_id] = row
 
-    for custom_id in sorted(duplicate_ids):
-        errors.append({"custom_id": custom_id, "error": "duplicate_custom_id_overwritten"})
+    duplicate_overwrite_count = len(duplicate_ids)
 
     for custom_id, row in latest_rows.items():
         try:
@@ -84,11 +83,6 @@ def main() -> None:
         errors.append({"custom_id": cid, "error": "missing_result"})
     retry_ids.update(missing_ids)
 
-    missing_ids = sorted(set(manifest.keys()) - seen)
-    for cid in missing_ids:
-        errors.append({"custom_id": cid, "error": "missing_result"})
-    retry_ids.update(missing_ids)
-
     write_jsonl("data/temp/raw_agents.jsonl", parsed)
     write_jsonl("data/temp/errors/parse_errors.jsonl", errors)
     write_jsonl(
@@ -97,11 +91,13 @@ def main() -> None:
     )
 
     logger.info(
-        "raw=%s parse_errors=%s missing_results=%s total=%s retry_queue=%s",
+        "raw=%s parse_errors=%s duplicate_overwrites=%s missing_results=%s unique_results=%s manifest_total=%s retry_queue=%s",
         len(parsed),
         len(errors),
+        duplicate_overwrite_count,
         len(missing_ids),
-        len(parsed) + len(errors),
+        len(seen),
+        len(manifest),
         len(retry_ids),
     )
 
