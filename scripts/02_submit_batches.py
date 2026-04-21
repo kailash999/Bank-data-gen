@@ -49,6 +49,7 @@ def _download_output(client: OpenAI, file_id: str, output_path: Path) -> None:
             if attempt == 3:
                 raise
             _retry_sleep(attempt)
+import os
 
 
 def _is_primary_batch_file(path: Path) -> bool:
@@ -108,7 +109,9 @@ def main() -> None:
     batch_size = int(cfg["batch_size"])
     _materialize_retry_batches(output_dir, retry_path, batch_size)
     batch_files = sorted(output_dir.glob("batch_*.jsonl"))
-
+    print(f"Found {cfg["api_key"]} api_key.")
+    if cfg["api_key"] == "${OPENAI_API_KEY}":
+        cfg["api_key"] = os.getenv("OPENAI_API_KEY")
     client = OpenAI(api_key=cfg["api_key"])
     status = load_json(status_path) if status_path.exists() else {}
 
