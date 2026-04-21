@@ -19,6 +19,11 @@ Phase 1 pipeline for generating 40,000 agents, building beneficiary links, and l
 `scripts/01_build_batches.py` reads per-segment prompt templates from `prompts/<segment>.txt`.
 Run the script from any working directory; template paths are resolved from the repository root.
 
+## Retry queue behavior
+
+`scripts/03_parse_responses.py` writes retryable `custom_id`s to `data/temp/retry_queue.jsonl`.
+Rerun `scripts/02_submit_batches.py` to materialize and submit `batch_retry_*.jsonl` from that queue.
+
 ## Configs
 
 All runtime configuration is in `config/`.
