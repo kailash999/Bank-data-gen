@@ -57,42 +57,67 @@ def chunks(items, size: int):
         yield items[i : i + size]
 
 
+def _clip(value, max_len: int):
+    if value is None:
+        return None
+    text = str(value)
+    return text[:max_len]
+
+
+def _to_int(value):
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_float(value):
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def to_row(agent: dict) -> tuple:
     tx_amt = agent.get("tx_amount_range", {})
     tx_freq = agent.get("tx_frequency_per_day", {})
     return (
-        agent.get("agent_id"),
-        agent.get("name"),
-        agent.get("age"),
-        agent.get("gender"),
-        agent.get("city"),
-        agent.get("state"),
-        agent.get("pin_code"),
-        agent.get("income_monthly_inr"),
-        agent.get("account_number"),
-        agent.get("account_type"),
-        agent.get("account_age_days"),
+        _clip(agent.get("agent_id"), 12),
+        _clip(agent.get("name"), 100),
+        _to_int(agent.get("age")),
+        _clip(agent.get("gender"), 10),
+        _clip(agent.get("city"), 50),
+        _clip(agent.get("state"), 50),
+        _clip(agent.get("pin_code"), 6),
+        _to_int(agent.get("income_monthly_inr")),
+        _clip(agent.get("account_number"), 12),
+        _clip(agent.get("account_type"), 20),
+        _to_int(agent.get("account_age_days")),
         agent.get("account_created_at"),
-        agent.get("ifsc_code"),
-        agent.get("kyc_tier"),
-        agent.get("registered_mobile"),
-        agent.get("registered_email"),
-        agent.get("device_id"),
-        agent.get("device_type"),
-        agent.get("ip_range"),
-        agent.get("credit_history_years"),
-        agent.get("user_type"),
-        agent.get("risk_tier"),
+        _clip(agent.get("ifsc_code"), 11),
+        _clip(agent.get("kyc_tier"), 10),
+        _clip(agent.get("registered_mobile"), 10),
+        _clip(agent.get("registered_email"), 100),
+        _clip(agent.get("device_id"), 20),
+        _clip(agent.get("device_type"), 20),
+        _clip(agent.get("ip_range"), 20),
+        _to_float(agent.get("credit_history_years")),
+        _clip(agent.get("user_type"), 30),
+        _clip(agent.get("risk_tier"), 10),
         agent.get("is_mule"),
         agent.get("is_hawala_node"),
         agent.get("is_structuring", False),
         agent.get("is_high_velocity", False),
         agent.get("is_dormant_reactivated", False),
         agent.get("is_round_tripper", False),
-        tx_amt.get("min_inr"),
-        tx_amt.get("max_inr"),
-        tx_freq.get("min"),
-        tx_freq.get("max"),
+        _to_int(tx_amt.get("min_inr")),
+        _to_int(tx_amt.get("max_inr")),
+        _to_float(tx_freq.get("min")),
+        _to_float(tx_freq.get("max")),
         agent.get("preferred_channels"),
         agent.get("behavior_description"),
     )
