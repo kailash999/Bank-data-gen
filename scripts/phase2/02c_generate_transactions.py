@@ -62,7 +62,21 @@ def main() -> None:
             )
             sessions = cur.fetchall()
 
-            cur.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(tx_id FROM 4) AS INTEGER)), 0) FROM transactions WHERE tx_id LIKE 'TX_%'")
+            cur.execute(
+                """
+                SELECT COALESCE(
+                  MAX(
+                    CASE
+                      WHEN tx_id ~ '^TX_[0-9]+$'
+                      THEN CAST(SUBSTRING(tx_id FROM 4) AS INTEGER)
+                      ELSE NULL
+                    END
+                  ),
+                  0
+                )
+                FROM transactions
+                """
+            )
             tx_counter = int(cur.fetchone()[0]) + 1
 
             staged = []
