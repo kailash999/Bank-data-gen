@@ -39,19 +39,29 @@ def main() -> None:
             ensure_phase2_columns(cur)
             cur.execute(
                 """
-                SELECT s.session_id, s.agent_id, s.login_at, s.attack_type,
-                       a.registered_mobile, a.registered_email, s.is_ato_session
+                SELECT
+                    s.session_id,
+                    s.agent_id,
+                    s.login_at,
+                    s.attack_type,
+                    a.registered_mobile,
+                    a.registered_email,
+                    s.is_ato_session,
+                    tx.first_tx
                 FROM sessions s
                 JOIN agents a ON a.agent_id = s.agent_id
+                LEFT JOIN (
+                    SELECT session_id, MIN(timestamp) AS first_tx
+                    FROM transactions
+                    GROUP BY session_id
+                ) tx ON tx.session_id = s.session_id
                 WHERE s.status='complete'
                 """
             )
             sessions = cur.fetchall()
 
-            for session_id, agent_id, login_at, attack_type, mobile, email, is_ato in sessions:
+            for session_id, agent_id, login_at, attack_type, mobile, email, is_ato, first_tx in sessions:
                 processed += 1
-                cur.execute("SELECT MIN(timestamp) FROM transactions WHERE session_id=%s", (session_id,))
-                first_tx = cur.fetchone()[0]
                 window_start = login_at + timedelta(seconds=30)
                 window_end = (first_tx - timedelta(seconds=30)) if first_tx else (login_at + timedelta(seconds=120))
                 if window_end <= window_start:
