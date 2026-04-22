@@ -1,6 +1,6 @@
 {
   "api_key": "${OPENAI_API_KEY}",
-  "model": "gpt-4o",
+  "model": "gpt-4o-mini",
   "max_tokens": 500,
   "batch_size": 1000,
   "poll_interval_minutes": 30,
