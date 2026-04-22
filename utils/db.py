@@ -9,10 +9,13 @@ from psycopg2.extras import execute_values
 
 from utils.config_utils import load_config
 
+import os
 
 @contextmanager
 def get_conn(config_path: str = "config/db.json") -> Iterator[Any]:
     cfg = load_config(config_path)
+    if cfg["password"] == "${DB_PASSWORD}":
+        cfg["password"] = os.getenv("DB_PASSWORD")
     conn = psycopg2.connect(
         host=cfg["host"],
         port=cfg["port"],
