@@ -67,7 +67,7 @@ def main() -> None:
                 amount = int(max(50_000, min(500_0000, amount)))
 
                 inflow_ts = random_ts_in_window(start, window_end) + timedelta(seconds=random.randint(0, 3600))
-                session_id = f"SESS_CTRL_{controller_id}_D1"
+                session_id = f"SC_{str(controller_id)[-8:]}_D1"
                 tx_id = f"TX_BULK_{mule_id}"
 
                 sessions.append(
