@@ -9,7 +9,7 @@ if str(ROOT_DIR) not in sys.path:
 
 import ipaddress
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from utils.config_utils import load_config
 from utils.io_utils import read_jsonl, write_jsonl
@@ -84,7 +84,7 @@ def main() -> None:
             mobiles.add(registered_mobile)
 
         account_age_days = int(agent["account_age_days"])
-        created_at = datetime.utcnow() - timedelta(days=account_age_days)
+        created_at = datetime.now(timezone.utc) - timedelta(days=account_age_days)
         created_at = created_at.replace(
             hour=random.randint(0, 23), minute=random.randint(0, 59), second=random.randint(0, 59), microsecond=0
         )
