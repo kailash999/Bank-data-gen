@@ -8,10 +8,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
-from statistics import mean
-
 from utils.config_utils import load_config
-from utils.db import get_conn, log_run
+from utils.db import execute_values, get_conn, log_run
 from utils.logging_utils import configure_logger
 from scripts.phase2.common import ensure_phase2_columns
 
@@ -27,61 +25,123 @@ def main() -> None:
             ensure_phase2_columns(cur)
             cur.execute(
                 """
-                SELECT s.session_id, s.agent_id, s.login_failed_count, s.device_change, s.ip_change, s.ip_risk_score,
-                       a.tx_amount_max_inr
-                FROM sessions s
-                JOIN agents a ON a.agent_id = s.agent_id
+                WITH tx_by_session AS (
+                    SELECT session_id, COUNT(*) AS tx_count, COALESCE(SUM(amount_inr), 0) AS session_total
+                    FROM transactions
+                    GROUP BY session_id
+                ),
+                tx_gaps AS (
+                    SELECT session_id, AVG(gap_s) AS avg_gap_s
+                    FROM (
+                        SELECT
+                            session_id,
+                            EXTRACT(EPOCH FROM timestamp - LAG(timestamp) OVER (PARTITION BY session_id ORDER BY timestamp)) AS gap_s
+                        FROM transactions
+                    ) g
+                    WHERE gap_s IS NOT NULL
+                    GROUP BY session_id
+                ),
+                session_enriched AS (
+                    SELECT
+                        s.session_id,
+                        s.agent_id,
+                        s.login_failed_count,
+                        s.device_change,
+                        s.ip_change,
+                        s.ip_risk_score,
+                        a.tx_amount_max_inr,
+                        COALESCE(txs.tx_count, 0) AS tx_count,
+                        COALESCE(txs.session_total, 0) AS session_total,
+                        gaps.avg_gap_s,
+                        AVG(COALESCE(txs.session_total, 0)) OVER (
+                            PARTITION BY s.agent_id
+                            ORDER BY s.login_at, s.session_id
+                            ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING
+                        ) AS avg_prior_30_total
+                    FROM sessions s
+                    JOIN agents a ON a.agent_id = s.agent_id
+                    LEFT JOIN tx_by_session txs ON txs.session_id = s.session_id
+                    LEFT JOIN tx_gaps gaps ON gaps.session_id = s.session_id
+                ),
+                profile_flags AS (
+                    SELECT
+                        session_id,
+                        BOOL_OR(change_type = 'mobile_number') AS mobile_change,
+                        BOOL_OR(change_type = 'email') AS email_change,
+                        BOOL_OR(change_type = 'password') AS password_change
+                    FROM profile_change_events
+                    GROUP BY session_id
+                ),
+                payee_flags AS (
+                    SELECT
+                        session_id,
+                        COUNT(*) AS payee_count,
+                        MIN(seconds_to_first_tx) AS min_seconds_to_first_tx
+                    FROM payee_addition_events
+                    GROUP BY session_id
+                )
+                SELECT
+                    se.session_id,
+                    se.login_failed_count,
+                    se.device_change,
+                    se.ip_change,
+                    se.ip_risk_score,
+                    se.tx_amount_max_inr,
+                    se.tx_count,
+                    se.session_total,
+                    se.avg_gap_s,
+                    se.avg_prior_30_total,
+                    COALESCE(pf.mobile_change, FALSE) AS mobile_change,
+                    COALESCE(pf.email_change, FALSE) AS email_change,
+                    COALESCE(pf.password_change, FALSE) AS password_change,
+                    COALESCE(pay.payee_count, 0) AS payee_count,
+                    pay.min_seconds_to_first_tx
+                FROM session_enriched se
+                LEFT JOIN profile_flags pf ON pf.session_id = se.session_id
+                LEFT JOIN payee_flags pay ON pay.session_id = se.session_id
                 """
             )
             sessions = cur.fetchall()
 
-            for sid, aid, fail_count, device_change, ip_change, ip_risk, tx_max in sessions:
+            session_updates = []
+            tx_updates = []
+
+            for (
+                sid,
+                fail_count,
+                device_change,
+                ip_change,
+                ip_risk,
+                tx_max,
+                tx_count,
+                session_total,
+                avg_gap_s,
+                avg_prior_30_total,
+                mobile_change,
+                email_change,
+                password_change,
+                payee_count,
+                min_seconds_to_first_tx,
+            ) in sessions:
                 processed += 1
-                cur.execute("SELECT change_type FROM profile_change_events WHERE session_id=%s", (sid,))
-                changes = {r[0] for r in cur.fetchall()}
 
-                cur.execute("SELECT seconds_to_first_tx FROM payee_addition_events WHERE session_id=%s", (sid,))
-                payees = [r[0] for r in cur.fetchall()]
-
-                cur.execute("SELECT amount_inr, timestamp FROM transactions WHERE session_id=%s ORDER BY timestamp", (sid,))
-                txs = cur.fetchall()
+                avg_base = float(avg_prior_30_total) if avg_prior_30_total is not None else float(tx_max or 1)
+                amt_vs_baseline = float(session_total or 0) / (avg_base + 1)
 
                 signals = {
                     "login_failed": (fail_count or 0) >= 2,
                     "device_change": bool(device_change),
                     "ip_change": bool(ip_change),
                     "ip_risk_high": float(ip_risk or 0) > 0.5,
-                    "mobile_change": "mobile_number" in changes,
-                    "email_change": "email" in changes,
-                    "password_change": "password" in changes,
-                    "payee_added": bool(payees),
-                    "quick_payee_tx": any((x or 999999) < 300 for x in payees),
-                    "high_tx_count": len(txs) > 3,
-                    "rapid_transfers": False,
-                    "high_amount": False,
+                    "mobile_change": bool(mobile_change),
+                    "email_change": bool(email_change),
+                    "password_change": bool(password_change),
+                    "payee_added": int(payee_count or 0) > 0,
+                    "quick_payee_tx": (min_seconds_to_first_tx or 999999) < 300,
+                    "high_tx_count": int(tx_count or 0) > 3,
+                    "rapid_transfers": avg_gap_s is not None and float(avg_gap_s) < 120,
+                    "high_amount": amt_vs_baseline > 3.0,
                 }
-
-                if len(txs) >= 2:
-                    gaps = [(txs[i + 1][1] - txs[i][1]).total_seconds() for i in range(len(txs) - 1)]
-                    signals["rapid_transfers"] = mean(gaps) < 120
-
-                session_total = sum(float(r[0]) for r in txs)
-                cur.execute(
-                    """
-                    SELECT s2.session_id
-                    FROM sessions s2
-                    WHERE s2.agent_id=%s AND s2.session_id<>%s AND s2.login_at < (SELECT login_at FROM sessions WHERE session_id=%s)
-                    """,
-                    (aid, sid, sid),
-                )
-                prior_sids = [r[0] for r in cur.fetchall()]
-                baseline = []
-                for psid in prior_sids[:30]:
-                    cur.execute("SELECT COALESCE(SUM(amount_inr),0) FROM transactions WHERE session_id=%s", (psid,))
-                    baseline.append(float(cur.fetchone()[0]))
-                avg_base = mean(baseline) if baseline else float(tx_max or 1)
-                amt_vs_baseline = session_total / (avg_base + 1)
-                signals["high_amount"] = amt_vs_baseline > 3.0
 
                 score = 0
                 score_map = {
@@ -102,9 +162,25 @@ def main() -> None:
                     if fired:
                         score += int(score_map[k])
 
-                cur.execute("UPDATE sessions SET ato_signal_score=%s WHERE session_id=%s", (score, sid))
-                cur.execute("UPDATE transactions SET ato_signal_score=%s, amt_vs_baseline=%s WHERE session_id=%s", (score, round(amt_vs_baseline, 4), sid))
+                session_updates.append((score, sid))
+                tx_updates.append((score, round(amt_vs_baseline, 4), sid))
                 written += 1
+
+            if session_updates:
+                execute_values(
+                    cur,
+                    "UPDATE sessions AS s SET ato_signal_score = d.score FROM (VALUES %s) AS d(score, session_id) WHERE s.session_id = d.session_id",
+                    session_updates,
+                    page_size=5000,
+                )
+
+            if tx_updates:
+                execute_values(
+                    cur,
+                    "UPDATE transactions AS t SET ato_signal_score = d.score, amt_vs_baseline = d.amt_vs_baseline FROM (VALUES %s) AS d(score, amt_vs_baseline, session_id) WHERE t.session_id = d.session_id",
+                    tx_updates,
+                    page_size=5000,
+                )
 
             cur.execute(
                 """
