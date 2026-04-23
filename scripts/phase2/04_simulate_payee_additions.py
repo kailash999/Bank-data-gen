@@ -35,13 +35,22 @@ def main() -> None:
             agents = {a: (city, ut) for a, city, ut in cur.fetchall()}
             all_ids = list(agents.keys())
 
-            cur.execute("SELECT session_id, agent_id, login_at, is_ato_session FROM sessions WHERE status='complete'")
+            cur.execute(
+                """
+                SELECT s.session_id, s.agent_id, s.login_at, s.is_ato_session, tx.first_tx
+                FROM sessions s
+                LEFT JOIN (
+                    SELECT session_id, MIN(timestamp) AS first_tx
+                    FROM transactions
+                    GROUP BY session_id
+                ) tx ON tx.session_id = s.session_id
+                WHERE s.status='complete'
+                """
+            )
             sessions = cur.fetchall()
 
-            for session_id, agent_id, login_at, is_ato in sessions:
+            for session_id, agent_id, login_at, is_ato, first_tx in sessions:
                 processed += 1
-                cur.execute("SELECT MIN(timestamp) FROM transactions WHERE session_id=%s", (session_id,))
-                first_tx = cur.fetchone()[0]
                 if not first_tx:
                     continue
 
