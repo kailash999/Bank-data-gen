@@ -19,6 +19,16 @@ logger = configure_logger("phase2_07_stamp_labels")
 REG_PATH = Path("data/temp/mule_inflow_registry.json")
 
 
+def _parse_inflow_timestamp(raw_value: str, tx_ts):
+    parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None and getattr(tx_ts, "tzinfo", None) is not None:
+        return parsed.replace(tzinfo=tx_ts.tzinfo)
+    if parsed.tzinfo is not None and getattr(tx_ts, "tzinfo", None) is None:
+        return parsed.astimezone().replace(tzinfo=None)
+    return parsed
+
+
+
 def main() -> None:
     inflow = json.loads(REG_PATH.read_text(encoding="utf-8")) if REG_PATH.exists() else {}
     processed = written = errors = 0
@@ -92,7 +102,7 @@ def main() -> None:
                     inflow_ts = inflow[sender].get("inflow_timestamp")
                     if inflow_ts:
                         try:
-                            its = datetime.fromisoformat(inflow_ts)
+                            its = _parse_inflow_timestamp(inflow_ts, ts)
                             post_bulk = (ts - its).total_seconds() <= 14400
                         except ValueError:
                             post_bulk = False
