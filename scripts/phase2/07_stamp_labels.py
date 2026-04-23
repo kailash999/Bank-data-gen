@@ -9,8 +9,7 @@ if str(ROOT_DIR) not in sys.path:
 
 
 import json
-from datetime import timedelta
-from pathlib import Path
+from datetime import datetime
 
 from utils.db import execute_values, get_conn, log_run
 from utils.logging_utils import configure_logger
@@ -29,34 +28,76 @@ def main() -> None:
             ensure_phase2_columns(cur)
             cur.execute(
                 """
-                SELECT t.tx_id, t.sender_agent_id, t.receiver_agent_id, t.amount_inr, t.timestamp,
-                       t.ato_signal_score, t.count_1h,
-                       a.is_mule, a.is_hawala_node, a.is_structuring,
-                       a.is_round_tripper, a.is_dormant_reactivated, a.risk_tier
-                FROM transactions t
-                JOIN agents a ON a.agent_id = t.sender_agent_id
-                ORDER BY t.timestamp
+                WITH tx_enriched AS (
+                    SELECT
+                        t.tx_id,
+                        t.sender_agent_id,
+                        t.receiver_agent_id,
+                        t.amount_inr,
+                        t.timestamp,
+                        t.ato_signal_score,
+                        t.count_1h,
+                        AVG(t.count_1h) OVER (
+                            PARTITION BY t.sender_agent_id
+                            ORDER BY t.timestamp, t.tx_id
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                        ) AS prior_avg_count_1h
+                    FROM transactions t
+                )
+                SELECT
+                    tx.tx_id,
+                    tx.sender_agent_id,
+                    tx.receiver_agent_id,
+                    tx.amount_inr,
+                    tx.timestamp,
+                    tx.ato_signal_score,
+                    tx.count_1h,
+                    tx.prior_avg_count_1h,
+                    a.is_mule,
+                    a.is_hawala_node,
+                    a.is_structuring,
+                    a.is_round_tripper,
+                    a.is_dormant_reactivated,
+                    a.risk_tier
+                FROM tx_enriched tx
+                JOIN agents a ON a.agent_id = tx.sender_agent_id
+                ORDER BY tx.timestamp, tx.tx_id
                 """
             )
             rows = cur.fetchall()
 
             labels = []
-            for tx_id, sender, receiver, amount, ts, ato_score, count_1h, is_mule, is_hawala, is_struct, is_rt, is_dormant, risk in rows:
+            for (
+                tx_id,
+                sender,
+                receiver,
+                amount,
+                ts,
+                ato_score,
+                count_1h,
+                prior_avg_count_1h,
+                is_mule,
+                is_hawala,
+                is_struct,
+                is_rt,
+                is_dormant,
+                risk,
+            ) in rows:
                 processed += 1
                 reason, suspicious, conf = "NONE", False, 0.0
                 score = int(ato_score or 0)
 
                 post_bulk = False
                 if is_mule and sender in inflow:
-                    try:
-                        its = __import__("datetime").datetime.fromisoformat(inflow[sender]["inflow_timestamp"])
-                        post_bulk = (ts - its).total_seconds() <= 14400
-                    except Exception:
-                        post_bulk = False
+                    inflow_ts = inflow[sender].get("inflow_timestamp")
+                    if inflow_ts:
+                        try:
+                            its = datetime.fromisoformat(inflow_ts)
+                            post_bulk = (ts - its).total_seconds() <= 14400
+                        except ValueError:
+                            post_bulk = False
 
-                velocity_ratio_gt_3 = False
-                cur.execute("SELECT AVG(count_1h) FROM transactions WHERE sender_agent_id=%s AND timestamp < %s", (sender, ts))
-                base = float(cur.fetchone()[0] or 0)
+                base = float(prior_avg_count_1h or 0)
                 velocity_ratio_gt_3 = (float(count_1h or 0) / (base + 1)) > 3.0
 
                 if score >= 10:

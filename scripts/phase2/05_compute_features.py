@@ -9,6 +9,7 @@ if str(ROOT_DIR) not in sys.path:
 
 
 from collections import defaultdict, deque
+from datetime import timedelta
 
 from utils.db import execute_values, get_conn, log_run
 from utils.logging_utils import configure_logger
@@ -62,19 +63,45 @@ def main() -> None:
                 """
             )
 
-            cur.execute("SELECT tx_id, sender_agent_id, receiver_agent_id, timestamp FROM transactions ORDER BY sender_agent_id, timestamp")
-            rows = cur.fetchall()
-            processed = len(rows)
+            read_cur = conn.cursor(name="phase2_05_feature_rows")
+            read_cur.itersize = 10000
+            read_cur.execute("SELECT tx_id, sender_agent_id, receiver_agent_id, timestamp FROM transactions ORDER BY sender_agent_id, timestamp")
 
             updates = []
             state: dict[str, deque] = defaultdict(deque)
-            for tx_id, sender, recv, ts in rows:
-                q = state[sender]
-                while q and q[0][0] < ts - __import__("datetime").timedelta(hours=24):
-                    q.popleft()
-                q.append((ts, recv))
-                uniq = len({x[1] for x in q})
-                updates.append((uniq, tx_id))
+            payee_counts: dict[str, dict[str, int]] = defaultdict(dict)
+            total_rows = 0
+
+            while True:
+                rows = read_cur.fetchmany(10000)
+                if not rows:
+                    break
+
+                total_rows += len(rows)
+                for tx_id, sender, recv, ts in rows:
+                    q = state[sender]
+                    counts = payee_counts[sender]
+
+                    cutoff = ts - timedelta(hours=24)
+                    while q and q[0][0] < cutoff:
+                        _, old_recv = q.popleft()
+                        left = counts[old_recv] - 1
+                        if left <= 0:
+                            del counts[old_recv]
+                        else:
+                            counts[old_recv] = left
+
+                    q.append((ts, recv))
+                    counts[recv] = counts.get(recv, 0) + 1
+                    updates.append((len(counts), tx_id))
+
+                    if len(updates) >= 5000:
+                        execute_values(cur, "UPDATE transactions AS t SET uniq_payees_24h = data.uniq FROM (VALUES %s) AS data(uniq, tx_id) WHERE t.tx_id=data.tx_id", updates, page_size=5000)
+                        written += len(updates)
+                        updates = []
+
+            read_cur.close()
+            processed = total_rows
 
             if updates:
                 execute_values(cur, "UPDATE transactions AS t SET uniq_payees_24h = data.uniq FROM (VALUES %s) AS data(uniq, tx_id) WHERE t.tx_id=data.tx_id", updates, page_size=5000)
