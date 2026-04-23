@@ -204,22 +204,6 @@ def main() -> None:
 
             read_cur.close()
 
-            if session_updates:
-                execute_values(
-                    cur,
-                    "UPDATE sessions AS s SET ato_signal_score = d.score FROM (VALUES %s) AS d(score, session_id) WHERE s.session_id = d.session_id",
-                    session_updates,
-                    page_size=5000,
-                )
-
-            if tx_updates:
-                execute_values(
-                    cur,
-                    "UPDATE transactions AS t SET ato_signal_score = d.score, amt_vs_baseline = d.amt_vs_baseline FROM (VALUES %s) AS d(score, amt_vs_baseline, session_id) WHERE t.session_id = d.session_id",
-                    tx_updates,
-                    page_size=5000,
-                )
-
             cur.execute(
                 """
                 SELECT
